@@ -34,6 +34,12 @@ class User extends Authenticatable
         return $this->hasMany(PortfolioMembership::class);
     }
 
+    /** @return HasMany<Transaction, $this> */
+    public function createdTransactions(): HasMany
+    {
+        return $this->hasMany(Transaction::class, 'created_by');
+    }
+
     /**
      * Get the attributes that should be cast.
      *

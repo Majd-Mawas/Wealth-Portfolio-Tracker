@@ -1,8 +1,11 @@
 <?php
 
+use App\Http\Controllers\Api\V1\AssetController;
 use App\Http\Controllers\Api\V1\AuthController;
+use App\Http\Controllers\Api\V1\DashboardController;
 use App\Http\Controllers\Api\V1\MembershipController;
 use App\Http\Controllers\Api\V1\PortfolioController;
+use App\Http\Controllers\Api\V1\TransactionController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function (): void {
@@ -28,6 +31,17 @@ Route::prefix('v1')->group(function (): void {
                 Route::post('/portfolios/{portfolio}/members', [MembershipController::class, 'store']);
                 Route::patch('/portfolios/{portfolio}/members/{membership}', [MembershipController::class, 'update']);
                 Route::delete('/portfolios/{portfolio}/members/{membership}', [MembershipController::class, 'destroy']);
+
+                Route::get('/portfolios/{portfolio}/assets', [AssetController::class, 'index']);
+                Route::post('/portfolios/{portfolio}/assets', [AssetController::class, 'store']);
+                Route::get('/portfolios/{portfolio}/assets/{asset}', [AssetController::class, 'show']);
+                Route::patch('/portfolios/{portfolio}/assets/{asset}', [AssetController::class, 'update']);
+                Route::delete('/portfolios/{portfolio}/assets/{asset}', [AssetController::class, 'destroy']);
+
+                Route::get('/portfolios/{portfolio}/transactions', [TransactionController::class, 'index']);
+                Route::post('/portfolios/{portfolio}/assets/{asset}/transactions', [TransactionController::class, 'store']);
+                Route::post('/portfolios/{portfolio}/transactions/{transaction}/reverse', [TransactionController::class, 'reverse']);
+                Route::get('/portfolios/{portfolio}/dashboard', DashboardController::class);
             });
         });
     });

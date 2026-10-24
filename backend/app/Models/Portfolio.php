@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Portfolio extends Model
@@ -24,6 +25,18 @@ class Portfolio extends Model
     public function memberships(): HasMany
     {
         return $this->hasMany(PortfolioMembership::class);
+    }
+
+    /** @return HasMany<Asset, $this> */
+    public function assets(): HasMany
+    {
+        return $this->hasMany(Asset::class);
+    }
+
+    /** @return HasManyThrough<Transaction, Asset, $this> */
+    public function transactions(): HasManyThrough
+    {
+        return $this->hasManyThrough(Transaction::class, Asset::class);
     }
 
     /** @return BelongsToMany<User, $this> */

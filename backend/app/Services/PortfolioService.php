@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\PortfolioRole;
+use App\Exceptions\ApiException;
 use App\Models\Portfolio;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -37,6 +38,17 @@ class PortfolioService
                 ->firstOrFail();
 
             Gate::forUser($actor)->authorize('update', $lockedPortfolio);
+
+            if (isset($data['base_currency'])
+                && $data['base_currency'] !== $lockedPortfolio->base_currency
+                && $lockedPortfolio->assets()->exists()) {
+                throw new ApiException(
+                    'currency_change_not_allowed',
+                    'The base currency cannot change after assets have been created.',
+                    409,
+                );
+            }
+
             $lockedPortfolio->update($data);
 
             return $lockedPortfolio->refresh();

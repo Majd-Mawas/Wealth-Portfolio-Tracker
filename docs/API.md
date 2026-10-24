@@ -1,6 +1,6 @@
 # Wealth Portfolio Tracker - API Contract
 
-Status: proposed contract for implementation. No endpoint in this document is claimed to exist yet.
+Status: living contract. Implemented behavior is described directly; deferred behavior is labeled explicitly.
 
 ## 1. Conventions
 
@@ -488,13 +488,12 @@ If `total_value` is zero, all percentages are `"0.00000000"`. The response does 
 
 ## 10. Assistant
 
-### `POST /assistant/chat`
+### `POST /portfolios/{portfolio}/assistant/chat`
 
 Authenticated and rate limited per user. Content type is JSON; response content type is `text/event-stream`. The endpoint is consumed with streaming `fetch`, not browser `EventSource`, because it is a POST with a body and CSRF header.
 
 ```json
 {
-  "portfolio_id": 42,
   "messages": [
     {
       "role": "user",
@@ -526,8 +525,8 @@ data: {"tool":"get_portfolio_summary"}
 event: tool_completed
 data: {"tool":"get_portfolio_summary"}
 
-event: confirmation_required
-data: {"token":"opaque-short-lived-token","summary":"Buy 2.5 EXM at USD 120.00 with USD 1.25 fees","expires_at":"2026-10-24T14:10:00Z"}
+event: tool_error
+data: {"tool":"list_portfolio_assets","code":"invalid_tool_arguments","message":"The assistant supplied invalid tool arguments."}
 
 event: done
 data: {"finish_reason":"stop"}
@@ -540,41 +539,7 @@ event: error
 data: {"code":"assistant_upstream_unavailable","message":"The assistant is temporarily unavailable.","request_id":"01JAZ...","retryable":true}
 ```
 
-The server never streams secrets, stack traces, raw provider errors, or hidden prompts.
-
-### `POST /assistant/confirm`
-
-Authenticated. Executes one previously proposed mutation after reauthorization. Accepts optional `Idempotency-Key`.
-
-```json
-{
-  "token": "opaque-short-lived-token"
-}
-```
-
-Response `201`:
-
-```json
-{
-  "data": {
-    "tool": "propose_transaction",
-    "result": {
-      "transaction_id": 9001,
-      "asset_id": 310,
-      "source": "assistant"
-    }
-  }
-}
-```
-
-Possible conflicts:
-
-- `confirmation_expired`;
-- `confirmation_already_used`;
-- `confirmation_actor_mismatch` (generic forbidden response externally);
-- `insufficient_quantity`;
-- membership/role change resulting in `403`;
-- idempotency conflict.
+The server never streams secrets, stack traces, raw provider errors, or hidden prompts. State-changing assistant tools and confirmation endpoints are intentionally not implemented.
 
 ### Tool contracts
 
@@ -608,7 +573,7 @@ Input:
 
 Read permission: any member. Server caps `limit` and minimizes fields.
 
-#### `list_recent_transactions`
+#### `list_portfolio_transactions`
 
 Input:
 
@@ -616,41 +581,22 @@ Input:
 {
   "portfolio_id": 42,
   "asset_id": 310,
+  "kind": null,
   "limit": 20
 }
 ```
 
 Read permission: any member. Server caps history and does not expose unrelated portfolios.
 
-#### `propose_transaction`
-
-Input:
-
-```json
-{
-  "portfolio_id": 42,
-  "asset_id": 310,
-  "kind": "buy",
-  "quantity": "2.50000000",
-  "unit_price": "120.00000000",
-  "fees": "1.25000000",
-  "occurred_at": "2026-10-20T09:30:00Z",
-  "note": "Monthly purchase"
-}
-```
-
-Proposal permission: Owner or Editor. It performs schema and preliminary domain validation but does not write. Successful output is a confirmation summary and token; only `/assistant/confirm` can execute it.
-
 ## 11. Contract integrity between Laravel and React
 
-When implementation begins:
+Contract maintenance strategy:
 
-1. Commit an OpenAPI 3.1 specification matching this design.
-2. Generate TypeScript request/response types from that specification.
-3. Wrap generated types with a small fetch client that handles CSRF, credentials, errors, request IDs, and SSE parsing.
-4. Use Laravel feature tests to assert response shape, decimal serialization, authorization, and examples for high-risk endpoints.
-5. Run generation and type checking in CI; fail when committed generated output is stale.
-6. Keep Zod focused on form UX. It mirrors relevant request constraints but does not replace server validation.
+1. The current React client keeps explicit request/response types beside a small fetch client that handles CSRF, credentials, errors, request IDs, and SSE parsing.
+2. Commit an OpenAPI 3.1 specification and generate TypeScript types when contract size or additional clients justify the generation step.
+3. Use Laravel feature tests to assert response shape, decimal serialization, authorization, and examples for high-risk endpoints.
+4. Run type checking in CI; once generation is introduced, fail when committed generated output is stale.
+5. Keep Zod focused on form UX. It mirrors relevant request constraints but does not replace server validation.
 
 This strategy gives a decoupled PHP/TypeScript stack an explicit boundary without introducing a second full-stack framework.
 

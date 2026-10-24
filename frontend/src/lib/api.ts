@@ -1,6 +1,6 @@
-import { apiClient, ensureCsrfCookie } from './api-client'
+import { apiClient, ensureCsrfCookie, streamRequest } from './api-client'
 import type {
-  Asset, AssetInput, CursorCollection, Dashboard, Membership, Portfolio, PortfolioInput,
+  Asset, AssetInput, AssistantMessage, AssistantStreamEvent, CursorCollection, Dashboard, Membership, Portfolio, PortfolioInput,
   Resource, Role, Transaction, TransactionInput, User,
 } from './api-types'
 
@@ -54,4 +54,58 @@ export const membersApi = {
   create: (portfolioId: number, input: { email: string; role: Role }) => apiClient.post<Resource<Membership>>(`${v1}/portfolios/${portfolioId}/members`, input),
   update: (portfolioId: number, id: number, role: Role) => apiClient.patch<Resource<Membership>>(`${v1}/portfolios/${portfolioId}/members/${id}`, { role }),
   delete: (portfolioId: number, id: number) => apiClient.delete<void>(`${v1}/portfolios/${portfolioId}/members/${id}`),
+}
+
+export const assistantApi = {
+  chat: async (
+    portfolioId: number,
+    messages: AssistantMessage[],
+    onEvent: (event: AssistantStreamEvent) => void,
+    signal?: AbortSignal,
+  ) => {
+    const response = await streamRequest(`${v1}/portfolios/${portfolioId}/assistant/chat`, { messages }, signal)
+    if (!response.body) throw new Error('The assistant response could not be streamed.')
+
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+
+    while (true) {
+      const { done, value } = await reader.read()
+      buffer += decoder.decode(value, { stream: !done }).replace(/\r\n/g, '\n')
+      const frames = buffer.split('\n\n')
+      buffer = frames.pop() ?? ''
+
+      for (const frame of frames) {
+        const parsed = parseAssistantEvent(frame)
+        if (parsed) onEvent(parsed)
+      }
+
+      if (done) break
+    }
+
+    if (buffer.trim()) {
+      const parsed = parseAssistantEvent(buffer)
+      if (parsed) onEvent(parsed)
+    }
+  },
+}
+
+function parseAssistantEvent(frame: string): AssistantStreamEvent | null {
+  let eventName = ''
+  const dataLines: string[] = []
+
+  for (const line of frame.split('\n')) {
+    if (line.startsWith('event:')) eventName = line.slice(6).trim()
+    if (line.startsWith('data:')) dataLines.push(line.slice(5).trimStart())
+  }
+
+  if (!eventName || eventName === 'update' || dataLines.length === 0) return null
+
+  try {
+    const data = JSON.parse(dataLines.join('\n')) as AssistantStreamEvent['data']
+    return { event: eventName, data } as AssistantStreamEvent
+  } catch {
+    return null
+  }
 }

@@ -131,3 +131,16 @@ export interface TransactionInput {
   occurred_at: string
   note?: string | null
 }
+
+export interface AssistantMessage {
+  role: 'user' | 'assistant'
+  content: string
+}
+
+export type AssistantStreamEvent =
+  | { event: 'meta'; data: { request_id: string } }
+  | { event: 'text_delta'; data: { text: string } }
+  | { event: 'tool_started' | 'tool_completed'; data: { tool: string } }
+  | { event: 'tool_error'; data: { tool: string; code: string; message: string; fields?: Record<string, string[]> } }
+  | { event: 'error'; data: { code: string; message: string; request_id?: string; retryable: boolean } }
+  | { event: 'done'; data: { finish_reason: 'stop' | 'error' } }

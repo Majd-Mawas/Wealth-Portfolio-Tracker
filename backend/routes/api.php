@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\V1\AssetController;
+use App\Http\Controllers\Api\V1\AssistantController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\DashboardController;
 use App\Http\Controllers\Api\V1\MembershipController;
@@ -42,6 +43,8 @@ Route::prefix('v1')->group(function (): void {
                 Route::post('/portfolios/{portfolio}/assets/{asset}/transactions', [TransactionController::class, 'store']);
                 Route::post('/portfolios/{portfolio}/transactions/{transaction}/reverse', [TransactionController::class, 'reverse']);
                 Route::get('/portfolios/{portfolio}/dashboard', DashboardController::class);
+                Route::post('/portfolios/{portfolio}/assistant/chat', AssistantController::class)
+                    ->middleware('throttle:assistant');
             });
         });
     });

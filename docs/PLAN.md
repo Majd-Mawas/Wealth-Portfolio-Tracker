@@ -32,7 +32,7 @@ These features form the minimum credible submission:
 4. Asset CRUD for stock, crypto, real estate, and cash assets.
 5. Append-only transaction entry and history.
 6. A dashboard showing total manual valuation and allocation by asset/type.
-7. A streamed embedded AI assistant with read tools and one confirmed write path for logging a transaction.
+7. A streamed embedded AI assistant with read-only portfolio summary, asset, and transaction tools.
 8. Consistent policy enforcement for HTTP controllers and AI tool execution.
 9. Focused automated tests for permissions, decimal behavior, core calculations, and AI tool boundaries.
 10. Clear setup, seed/demo instructions, and documentation of trade-offs.
@@ -71,7 +71,7 @@ The P2 items are valuable product work, but each introduces external reliability
 | Add, change, or remove members | Yes | No | No |
 | Delete portfolio | Yes | No | No |
 | Use assistant read tools | Yes | Yes | Yes |
-| Confirm assistant mutation tools | Yes | Yes | No |
+| Confirm assistant mutation tools | Deferred | Deferred | No |
 
 Membership invariants:
 
@@ -117,9 +117,7 @@ Membership invariants:
 ### AI assistant
 
 - Read tools can summarize only portfolios the current user may view.
-- The transaction tool validates the same request rules and invokes the same application service as the standard endpoint.
-- A proposed mutation does not execute until the authenticated user confirms a short-lived, single-use token.
-- Confirmation rechecks authorization and validation, because membership or portfolio state may have changed since the proposal.
+- The implemented assistant tool set is read-only. State-changing tools and confirmation endpoints are deferred.
 - Tool calls are allowlisted, schema validated, rate limited, round limited, and audit logged without storing secrets.
 - The model never receives database credentials, the OpenAI API key, raw authorization objects, or arbitrary execution access.
 
@@ -152,13 +150,12 @@ Exit criterion: a seeded owner/editor/viewer scenario works end to end and calcu
 
 ### Phase 3 - secure AI vertical slice
 
-- Define a small tool registry: portfolio summary, assets, transactions, and proposed transaction creation.
+- Define a small read-only tool registry: portfolio summary, assets, and transactions.
 - Add the OpenAI function-calling loop with a strict maximum number of tool rounds.
-- Add confirmation tokens and the separate confirmation endpoint for mutations.
 - Add streamed text/tool events and a minimal assistant panel.
 - Add fake-model contract tests and policy tests for every tool.
 
-Exit criterion: a Viewer can ask questions but cannot mutate; an Editor can propose and confirm a transaction; a revoked member cannot confirm an old proposal.
+Exit criterion: Owner, Editor, and Viewer members can ask portfolio questions; outsiders cannot reach the model or read another portfolio; invalid tool arguments are rejected.
 
 ### Phase 4 - hardening and presentation
 
@@ -181,13 +178,13 @@ Testing follows risk, not just code coverage.
 - Database tests for unique memberships, foreign keys, last-owner protection, transaction immutability, and non-negative holdings; add reversal uniqueness with the P1 reversal endpoint.
 - Decimal tests with fractional crypto quantities, large real-estate values, rounding boundaries, and zero-total allocations.
 - Contract tests for validation errors, decimal string serialization, pagination, and status codes.
-- AI tests with a fake OpenAI client: allowed/unknown tools, malformed arguments, excessive rounds, model failure, timeout, confirmation expiry/replay, role revocation, and prompt-injection-like asset text.
+- AI tests with a fake OpenAI endpoint: authorized read tools, malformed or excessive arguments, outsider denial before the provider call, and cross-portfolio prompt-injection attempts.
 
 ### Frontend
 
 - Unit tests for schemas, API error normalization, permission-aware controls, decimal display formatting, and SSE parsing.
-- Component tests for forms, confirmation UI, loading/empty/error states, and chart fallbacks.
-- A small set of end-to-end tests for owner setup, editor transaction entry, viewer denial, and confirmed assistant mutation.
+- Component tests for forms, assistant streaming/error states, loading/empty/error states, and chart fallbacks.
+- A small set of end-to-end tests for owner setup, editor transaction entry, viewer mutation denial, and authorized assistant reads.
 
 ### Manual and security checks
 
@@ -213,13 +210,13 @@ AI coding agents will accelerate bounded implementation tasks, but responsibilit
 | Risk | Impact | Mitigation / conscious trade-off |
 | --- | --- | --- |
 | Authorization drift between controllers and AI tools | Critical data leak or mutation | Policies define capability; application services enforce them again and are the only mutation path. |
-| LLM prompt/tool injection | Unauthorized or surprising action | Fixed tool allowlist, strict JSON schemas, server-derived actor context, untrusted-data delimiters, round limits, and explicit confirmation for writes. |
+| LLM prompt/tool injection | Unauthorized data access | Fixed read-only tool allowlist, strict JSON schemas, route-bound portfolio context, server-derived actor context, policy rechecks, and round limits. |
 | Decimal precision loss | Incorrect financial values | MySQL `DECIMAL`, decimal strings over JSON, decimal-safe PHP math, server-calculated totals, and no JS arithmetic for authoritative values. |
 | Last Owner removed concurrently | Locked-out portfolio | Transaction plus row locking when changing/removing Owner memberships. |
 | Duplicate transaction after retry | Incorrect holdings | Support an `Idempotency-Key` for write endpoints and confirmation token single-use semantics. |
 | Manual prices become misleading | Incorrect expectations | Display `price_as_of`, label values as estimates, and defer claims of real-time pricing. |
 | Stateless assistant history grows or is tampered with | Cost or confusing responses | Bound message count/size, treat history as untrusted conversation text, and never derive authorization from it. |
-| Streaming complicates error handling | Broken UX after headers are sent | Emit typed error/done events with request IDs; keep normal non-streaming confirmation endpoint. |
+| Streaming complicates error handling | Broken UX after headers are sent | Emit typed error/done events with request IDs and keep portfolio CRUD independent of assistant availability. |
 | OpenAI outage or timeout | Assistant unavailable | Core CRUD/dashboard remain independent; timeouts and friendly retryable errors isolate failure. |
 | Scope expansion | Incomplete core | P0 exit criteria gate all P1/P2 work. Any cut is recorded honestly in the README and walkthrough. |
 
@@ -231,8 +228,8 @@ AI coding agents will accelerate bounded implementation tasks, but responsibilit
 4. **Manual prices in one base currency.** This yields a coherent valuation slice without pretending that provider/FX complexity is solved.
 5. **Decimal strings end to end.** The database and backend own financial arithmetic; JavaScript numbers are limited to non-authoritative chart coordinates.
 6. **Raw OpenAI tool calling behind a small registry.** The use case does not need LangChain/LangGraph. Fewer layers keep prompts, tool schemas, authorization, and failure handling inspectable.
-7. **Two-step assistant mutations.** Model intent produces a proposal; a human confirmation triggers a fresh authorization check and execution.
-8. **OpenAPI as the cross-stack contract.** A versioned specification and generated TypeScript types reduce Laravel/React drift without forcing a unified framework.
+7. **Read-only assistant first.** The model can retrieve only minimized portfolio data through three allowlisted tools; any future mutation workflow requires a separate design and explicit confirmation.
+8. **Explicit cross-stack contracts.** A versioned human-readable API contract and checked TypeScript types keep the current scope inspectable; OpenAPI generation is deferred until its maintenance cost is justified.
 9. **Synchronous valuation first.** Household-scale aggregates are cheap; queues and caches will be added only after measured need or external feeds.
 
 See [ARCHITECTURE.md](./ARCHITECTURE.md) for component and data design, and [API.md](./API.md) for the proposed HTTP contract.

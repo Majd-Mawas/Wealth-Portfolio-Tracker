@@ -31,6 +31,21 @@ async function parseError(response: Response) {
   )
 }
 
+async function send(path: string, init: RequestInit = {}) {
+  const method = init.method?.toUpperCase() ?? 'GET'
+  const headers = new Headers(init.headers)
+  if (!headers.has('Accept')) headers.set('Accept', 'application/json')
+  if (init.body) headers.set('Content-Type', 'application/json')
+  if (!['GET', 'HEAD'].includes(method)) {
+    const token = cookie('XSRF-TOKEN')
+    if (token) headers.set('X-XSRF-TOKEN', token)
+  }
+
+  const response = await fetch(`${API_ORIGIN}${path}`, { ...init, headers, credentials: 'include' })
+  if (!response.ok) throw await parseError(response)
+  return response
+}
+
 export async function ensureCsrfCookie() {
   const response = await fetch(`${API_ORIGIN}/sanctum/csrf-cookie`, {
     credentials: 'include',
@@ -40,19 +55,18 @@ export async function ensureCsrfCookie() {
 }
 
 export async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const method = init.method?.toUpperCase() ?? 'GET'
-  const headers = new Headers(init.headers)
-  headers.set('Accept', 'application/json')
-  if (init.body) headers.set('Content-Type', 'application/json')
-  if (!['GET', 'HEAD'].includes(method)) {
-    const token = cookie('XSRF-TOKEN')
-    if (token) headers.set('X-XSRF-TOKEN', token)
-  }
-
-  const response = await fetch(`${API_ORIGIN}${path}`, { ...init, headers, credentials: 'include' })
-  if (!response.ok) throw await parseError(response)
+  const response = await send(path, init)
   if (response.status === 204) return undefined as T
   return response.json() as Promise<T>
+}
+
+export function streamRequest(path: string, body: unknown, signal?: AbortSignal) {
+  return send(path, {
+    method: 'POST',
+    body: JSON.stringify(body),
+    signal,
+    headers: { Accept: 'text/event-stream' },
+  })
 }
 
 export const apiClient = {

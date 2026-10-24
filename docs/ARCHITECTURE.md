@@ -1,6 +1,6 @@
 # Wealth Portfolio Tracker - Architecture
 
-Status: proposed architecture. This document describes intended behavior, not completed implementation.
+Status: living architecture. Implemented behavior is stated directly; future evolution remains labeled as planned or deferred.
 
 ## 1. Architectural drivers
 
@@ -60,7 +60,6 @@ Services own transaction boundaries and cross-record invariants:
 - owner count check plus membership change;
 - current quantity check plus transaction insertion;
 - original transaction lock plus reversal insertion;
-- assistant confirmation consumption plus final reauthorization plus mutation.
 
 ### Domain and persistence layer
 
@@ -250,50 +249,32 @@ The frontend may hide unavailable controls for usability, but the server never t
 
 The assistant needs a short request/tool/result loop, not a graph runtime, memory platform, or agent framework. Calling the OpenAI API directly keeps the model request, tool JSON Schema, round limits, and error behavior visible. A Laravel interface around the OpenAI client still permits a fake in tests and a provider change later.
 
-The implementation will use the Responses API protocol: function-call items are paired with function-call-output items by `call_id`, function schemas explicitly request strict validation, and the backend handles the provider's typed streaming events. The public API does not leak provider event shapes; it translates them into the smaller application event contract in [API.md](./API.md). This follows the current [OpenAI Responses migration guidance](https://developers.openai.com/api/docs/guides/migrate-to-responses) while keeping provider details behind one adapter. The concrete model is configuration, not hard-coded domain behavior, and will be pinned and documented when implementation begins.
+The implementation uses the Responses API protocol: function-call items are paired with function-call-output items by `call_id`, function schemas request strict validation, and provider details stay behind `OpenAIResponsesClient`. The concrete model is configuration (`OPENAI_MODEL`), with `gpt-6-luna` as the prototype default. `store: false` is sent on each request.
 
 ### Tool allowlist
 
-Proposed P0 tools:
+Implemented read-only tools:
 
 | Tool | Mode | Permission |
 | --- | --- | --- |
 | `get_portfolio_summary` | read | any member |
 | `list_portfolio_assets` | read | any member |
-| `list_recent_transactions` | read | any member |
-| `propose_transaction` | proposal only | Owner or Editor |
+| `list_portfolio_transactions` | read | any member |
 
 There is no arbitrary SQL, URL fetch, filesystem access, code execution, membership management, portfolio deletion, or price-changing tool.
 
 ### Execution sequence
 
 ```text
-1. Authenticated user POSTs a bounded message history and optional portfolio context.
+1. Authenticated user POSTs bounded message history to the active portfolio route.
 2. Backend checks rate/size limits and constructs a server-owned agent context.
 3. OpenAI may return text or request an allowlisted tool.
 4. Backend validates tool name and arguments against the registered strict schema.
 5. Tool executor calls an actor-aware application service; policy is rechecked there.
 6. Read result is minimized and returned to the model as untrusted data, correlated to the request with the provider `call_id`.
-7. For a mutation, the tool returns a human-readable proposal plus a short-lived token.
-8. UI renders exact effects and asks the user to confirm.
-9. Confirmation endpoint consumes the token once, reauthenticates, reauthorizes,
-   revalidates, applies idempotency, and records the transaction.
 ```
 
-The assistant loop has a small maximum (for example, four tool rounds), input/output token limits, upstream timeouts, and cancellation when the client disconnects.
-
-### Confirmation token
-
-The token is an encrypted and authenticated server payload containing:
-
-- user ID;
-- tool name and normalized arguments;
-- portfolio/resource IDs;
-- issued/expiry timestamps;
-- nonce;
-- request ID.
-
-The nonce is stored in the configured Laravel cache for a few minutes and atomically consumed. A token is bound to its initiating user, cannot be edited, expires quickly, and cannot be replayed. The cache abstraction works locally without forcing Redis; a multi-instance deployment would require a shared cache.
+The assistant loop is capped at four tool rounds, message and output sizes are bounded, upstream calls have explicit connection/response timeouts, and the browser can cancel its active request. Mutation proposals, confirmation tokens, and all write tools are deferred.
 
 ### Prompt and data security
 
@@ -303,20 +284,20 @@ The nonce is stored in the configured Laravel cache for a few minutes and atomic
 - Tool arguments never include or override an actor ID or role.
 - The API key remains server-side and is redacted from errors/logs.
 - Tool results return the minimum fields needed for the answer.
-- Structured logs record request ID, actor, portfolio, tool, outcome, latency, and redacted argument summary. Full financial prompts/results are not logged by default.
+- Structured logs record actor, portfolio, tool, and safe success/rejection metadata. Full financial prompts, tool results, and arguments are not logged by default; request-wide latency metrics are deferred.
 - OpenAI retention/privacy configuration is documented before production use; the UI discloses that selected portfolio data is sent to the provider.
 
 ### Streaming
 
-`POST /api/v1/assistant/chat` returns `text/event-stream` consumed with `fetch()` so a request body and CSRF header can be used. Event types are `meta`, `text_delta`, `tool_started`, `tool_completed`, `confirmation_required`, `done`, and `error`.
+`POST /api/v1/portfolios/{portfolio}/assistant/chat` returns `text/event-stream` consumed with `fetch()` so a request body and CSRF header can be used. Event types are `meta`, `text_delta`, `tool_started`, `tool_completed`, `tool_error`, `done`, and `error`.
 
-The stream improves responsiveness but does not carry out confirmation. Mutation confirmation uses a conventional JSON endpoint so errors and idempotency are unambiguous.
+Laravel streams request metadata and tool progress as each tool round completes, then emits the final answer in text chunks. The direct HTTP adapter buffers each individual Responses API call; true provider-token passthrough is deferred because it would add a second event parser and more complex mid-stream failure recovery to this prototype.
 
 ## 8. Frontend architecture
 
 - Route/layout layer for auth and selected portfolio context.
 - Feature folders for auth, portfolios, members, assets, transactions, dashboard, and assistant.
-- A generated TypeScript API type layer from the committed OpenAPI document, wrapped by a small `fetch` client.
+- An explicit TypeScript API type layer wrapped by a small `fetch` client. OpenAPI generation is deferred until contract size or additional consumers justify it.
 - TanStack Query owns server cache, invalidation, and request states. It does not duplicate domain state in another global store.
 - React Hook Form and Zod handle interactive form state and fast client feedback. Server validation errors are mapped back to fields.
 - shadcn/ui primitives plus Tailwind produce accessible, intentional views without inventing a design-system framework.
@@ -328,14 +309,14 @@ Permission flags returned with resources may guide UI affordances, but the role/
 
 ## 9. API contract strategy
 
-- A committed OpenAPI 3.1 document will be the machine-readable contract when implementation begins; [API.md](./API.md) is the human-readable design.
-- TypeScript request/response types are generated from OpenAPI in CI and checked for an unchanged working tree.
+- [API.md](./API.md) is the current human-readable contract, mirrored by explicit TypeScript request/response types in the client.
+- An OpenAPI 3.1 document and generated client types are an evolution point, not an implemented build step.
 - Laravel API Resources and feature tests verify examples and serialization, especially decimal strings and errors.
 - All endpoints are versioned under `/api/v1`; breaking changes require a new version or a coordinated migration.
 - Timestamps are RFC 3339 UTC strings. Currency codes and enum values use stable lowercase/uppercase conventions documented in the schema.
 - Lists use cursor pagination where history may grow; small membership lists can return bounded arrays.
 
-OpenAPI generation reduces compile-time drift but does not replace runtime validation. Laravel validates all requests, and the browser treats every network failure as possible.
+The shared contract and TypeScript checking reduce drift but do not replace runtime validation. Laravel validates all requests, and the browser treats every network failure as possible.
 
 ## 10. Operational and failure behavior
 
@@ -343,7 +324,7 @@ OpenAPI generation reduces compile-time drift but does not replace runtime valid
 - Validation failures are `422`; unauthenticated is `401`; forbidden is `403`; missing is `404`; conflicts such as last-owner or negative holdings are `409`; rate limiting is `429`.
 - Database transactions wrap invariant-sensitive writes. Expected conflicts produce stable machine-readable error codes.
 - OpenAI timeout/failure returns an assistant-specific error without degrading portfolio CRUD or dashboard availability.
-- No queue or Redis is required for the MVP. Add them when shared confirmation state, provider ingestion, or measured latency makes the operational cost worthwhile.
+- No queue or Redis is required for the MVP. Add them when shared assistant state, provider ingestion, or measured latency makes the operational cost worthwhile.
 
 ## 11. Deliberate trade-offs
 
@@ -356,7 +337,7 @@ OpenAPI generation reduces compile-time drift but does not replace runtime valid
 | Manual one-currency valuation | Honest, coherent MVP | No cross-currency or live-market accuracy |
 | Raw OpenAI tool loop | Minimal dependencies and visible security boundary | More orchestration code if workflows become complex |
 | Stateless bounded chat | Less sensitive storage and schema | No durable cross-device conversation history |
-| Confirmation for AI writes | Prevents silent model mutations | Adds one interaction and short-lived cache state |
+| Read-only AI tools for this phase | Keeps the authorization boundary small and prevents model-initiated mutations | A separately confirmed write workflow remains future work |
 
 ## 12. Evolution points
 

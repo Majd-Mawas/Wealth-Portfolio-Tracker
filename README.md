@@ -82,7 +82,7 @@ CREATE DATABASE wealth_portfolio_tracker
   COLLATE utf8mb4_unicode_ci;
 ```
 
-Run migrations, optionally including the deterministic demo data:
+Run migrations, optionally including the deterministic local demo data:
 
 ```bash
 cd backend
@@ -90,7 +90,15 @@ php artisan migrate
 php artisan db:seed
 ```
 
-For a disposable local database, `php artisan migrate:fresh --seed` recreates all tables and loads the demo. Do not run that command against a database containing data you need to keep.
+`DatabaseSeeder` delegates to the dedicated `DemoPortfolioSeeder`. To invoke it directly, run:
+
+```bash
+php artisan db:seed --class='Database\Seeders\DemoPortfolioSeeder'
+```
+
+Both seed commands refuse to load demo records unless `APP_ENV` is `local` or `testing`. They are repeatable and never truncate tables or delete existing records.
+
+For a disposable local database only, `php artisan migrate:fresh --seed` recreates all tables and loads the demo. This command drops every table first: never run it against production, a shared database, or any database containing data you need to keep. On a database that must be preserved, use `php artisan migrate` followed by `php artisan db:seed` instead.
 
 ## Running backend and frontend
 
@@ -130,15 +138,33 @@ npm audit
 
 ## Demo data
 
-`php artisan db:seed` creates one portfolio with four manually priced assets and three users. All demo accounts use the password `password` and are intended only for local development:
+The demo dataset is entirely fictional and intended only for local development, automated tests, screenshots, and the assessment walkthrough. All four accounts use the local-only password `DemoOnly!2026`:
 
-| Email | Portfolio role | Capabilities |
+| User | Email | Primary demo scenario |
 | --- | --- | --- |
-| `owner@example.com` | Owner | Full portfolio, asset, transaction, and membership management |
-| `editor@example.com` | Editor | View and modify assets and transactions |
-| `viewer@example.com` | Viewer | Read-only portfolio access, including assistant read tools |
+| Alex Morgan | `alex@example.test` | Owns Growth Portfolio; Viewer on Retirement Savings |
+| Sarah Bennett | `sarah@example.test` | Owns Family Wealth; Editor on Growth Portfolio |
+| Daniel Reed | `daniel@example.test` | Owns Retirement Savings; Viewer on Growth Portfolio; Editor on Family Wealth |
+| Emma Wilson | `emma@example.test` | Sole member and Owner of private Crypto Holdings; Editor on Retirement Savings; Viewer on Family Wealth |
 
-The seeder is repeatable and does not duplicate its demo records.
+The seeder creates four portfolios, ten memberships, thirteen assets, and thirty-nine transactions dated from November 2025 through October 2026:
+
+- **Growth Portfolio (USD):** Apple, Microsoft, NVIDIA, and a USD cash balance. It contains 16 transactions so the transaction-history pagination and Buy/Sell filters are visible.
+- **Family Wealth (USD):** a residential apartment, a rental property, and a family cash reserve, producing a clear real-estate-heavy allocation chart.
+- **Retirement Savings (EUR):** European equity and bond ETFs plus an EUR cash balance. EUR assets live in an EUR portfolio because the prototype intentionally has no FX conversion.
+- **Crypto Holdings (USD):** Bitcoin, Ethereum, and Solana. Emma is its only member, making it useful for cross-portfolio access checks.
+
+All prices are fixed, fictional reference prices with a `price_as_of` timestamp of 20 October 2026. They are not current market quotes. The histories include valid buys, sells, deposits, and withdrawals without overselling or negative balances. Transaction fees and acquisition prices are historical context; current dashboard valuation continues to use each asset's documented manual reference price.
+
+Useful walkthrough scenarios:
+
+- Sign in as Alex to manage Growth Portfolio and demonstrate its dashboard, chart, filters, pagination, member roles, and assistant queries.
+- Sign in as Sarah to demonstrate Editor asset and transaction access while membership controls remain unavailable.
+- Sign in as Daniel to demonstrate Viewer access on Growth Portfolio and rejected write requests.
+- Sign in as Emma to demonstrate the private Crypto Holdings portfolio and cross-portfolio isolation.
+- Ask the assistant to summarize allocation, list the largest assets, or describe recent transactions. The assistant remains read-only and identifies valuations as manual.
+
+The seeder identifies its records through reserved `.test` accounts, portfolio ownership, asset names, and `[DEMO]` transaction notes. Re-running it restores the defined demo users, memberships, asset reference data, and missing demo transactions without duplicating them. It deliberately does not delete extra records or user changes; use `migrate:fresh --seed` only when you explicitly want to rebuild a disposable local database from scratch.
 
 ## Implemented features
 

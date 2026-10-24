@@ -303,7 +303,7 @@ Laravel streams request metadata and tool progress as each tool round completes,
 - shadcn/ui primitives plus Tailwind produce accessible, intentional views without inventing a design-system framework.
 - Recharts renders allocation charts from server-returned values. A table remains the precise and accessible representation.
 
-Query keys are resource scoped, for example `['portfolio', id, 'assets']`. After a confirmed transaction, invalidate asset balance, transaction history, dashboard, and relevant assistant summary queries.
+Query keys are resource scoped, for example `['portfolio', id, 'assets']`. After an asset or transaction write, invalidate asset balance, transaction history, and dashboard queries for that portfolio.
 
 Permission flags returned with resources may guide UI affordances, but the role/capability calculation remains authoritative on the server.
 
@@ -314,7 +314,7 @@ Permission flags returned with resources may guide UI affordances, but the role/
 - Laravel API Resources and feature tests verify examples and serialization, especially decimal strings and errors.
 - All endpoints are versioned under `/api/v1`; breaking changes require a new version or a coordinated migration.
 - Timestamps are RFC 3339 UTC strings. Currency codes and enum values use stable lowercase/uppercase conventions documented in the schema.
-- Lists use cursor pagination where history may grow; small membership lists can return bounded arrays.
+- Assets and transaction history use cursor pagination; the household-sized membership list is intentionally unpaginated in the MVP.
 
 The shared contract and TypeScript checking reduce drift but do not replace runtime validation. Laravel validates all requests, and the browser treats every network failure as possible.
 

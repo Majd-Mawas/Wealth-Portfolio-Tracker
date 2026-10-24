@@ -53,7 +53,7 @@ export interface Transaction {
   fees: string
   occurred_at: string
   note: string | null
-  source: 'manual' | 'reversal'
+  source: 'api' | 'assistant'
   reversal_of_id: number | null
   created_by: Pick<User, 'id' | 'name'>
   created_at: string

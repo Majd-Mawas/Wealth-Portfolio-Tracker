@@ -1,12 +1,22 @@
 import type { AssetType } from './api-types'
 
 export function money(value: string | number, currency = 'USD') {
-  const number = typeof value === 'string' ? Number(value) : value
-  return new Intl.NumberFormat(undefined, { style: 'currency', currency, maximumFractionDigits: 2 }).format(Number.isFinite(number) ? number : 0)
+  return new Intl.NumberFormat(undefined, { style: 'currency', currency, maximumFractionDigits: 2 })
+    .format(exactIntlValue(value))
 }
 
 export function quantity(value: string | number) {
-  return new Intl.NumberFormat(undefined, { maximumFractionDigits: 8 }).format(Number(value))
+  return new Intl.NumberFormat(undefined, { maximumFractionDigits: 8 }).format(exactIntlValue(value))
+}
+
+function exactIntlValue(value: string | number): number {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0
+
+  const normalized = value.trim()
+  if (!/^-?(0|[1-9]\d*)(\.\d+)?$/.test(normalized)) return 0
+
+  // ECMA-402 accepts decimal strings without first rounding through a binary float.
+  return normalized as unknown as number
 }
 
 export function dateTime(value: string) {

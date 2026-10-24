@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Plus, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
@@ -27,8 +27,8 @@ export function MembersPage() {
   const { portfolio } = useOutletContext<PortfolioOutletContext>()
   const queryClient = useQueryClient()
   const [open, setOpen] = useState(false)
-  const members = useInfiniteQuery({ queryKey: ['portfolio', portfolio.id, 'members'], queryFn: ({ pageParam }) => membersApi.list(portfolio.id, pageParam), initialPageParam: null as string | null, getNextPageParam: (last) => last.meta.next_cursor })
-  const items = members.data?.pages.flatMap((page) => page.data) ?? []
+  const members = useQuery({ queryKey: ['portfolio', portfolio.id, 'members'], queryFn: () => membersApi.list(portfolio.id) })
+  const items = members.data?.data ?? []
   const canManage = portfolio.capabilities.manage_members
   const update = useMutation({ mutationFn: ({ id, role }: { id: number; role: Role }) => membersApi.update(portfolio.id, id, role), onSuccess: () => queryClient.invalidateQueries({ queryKey: ['portfolio', portfolio.id] }) })
   const remove = useMutation({ mutationFn: (id: number) => membersApi.delete(portfolio.id, id), onSuccess: () => queryClient.invalidateQueries({ queryKey: ['portfolio', portfolio.id] }) })
@@ -37,7 +37,6 @@ export function MembersPage() {
     <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><h2 className="text-xl font-semibold text-[#192b24]">Portfolio members</h2><p className="mt-1 text-sm text-[#687871]">Owners manage access. Editors can change portfolio data; viewers have read-only access.</p></div>{canManage && <Button onClick={() => setOpen(true)}><Plus size={16} />Add member</Button>}</div>
     {members.error && <ErrorState error={members.error} />}{(update.error || remove.error) && <Alert>{errorMessage(update.error ?? remove.error)}</Alert>}
     {!members.error && items.length === 0 ? <EmptyState title="No members found" description="This portfolio does not have any visible membership records." /> : <Card><Table><TableHeader><TableRow><TableHead>Member</TableHead><TableHead>Role</TableHead><TableHead>Added</TableHead>{canManage && <TableHead className="w-16">Remove</TableHead>}</TableRow></TableHeader><TableBody>{items.map((membership) => <TableRow key={membership.id}><TableCell><p className="font-medium text-[#25392f]">{membership.user.name}</p><p className="text-xs text-[#718079]">{membership.user.email}</p></TableCell><TableCell>{canManage ? <select className="field-select max-w-36" value={membership.role} disabled={update.isPending} onChange={(event) => update.mutate({ id: membership.id, role: event.target.value as Role })}><option value="owner">Owner</option><option value="editor">Editor</option><option value="viewer">Viewer</option></select> : <Badge>{membership.role}</Badge>}</TableCell><TableCell>{shortDate(membership.created_at)}</TableCell>{canManage && <TableCell><Button variant="ghost" size="icon" aria-label={`Remove ${membership.user.name}`} onClick={() => { if (window.confirm(`Remove ${membership.user.name} from this portfolio?`)) remove.mutate(membership.id) }}><Trash2 size={16} /></Button></TableCell>}</TableRow>)}</TableBody></Table></Card>}
-    {members.hasNextPage && <div className="text-center"><Button variant="secondary" onClick={() => members.fetchNextPage()} disabled={members.isFetchingNextPage}>{members.isFetchingNextPage ? 'Loading…' : 'Load more'}</Button></div>}
     <AddMemberDialog portfolioId={portfolio.id} open={open} onOpenChange={setOpen} />
   </div>
 }

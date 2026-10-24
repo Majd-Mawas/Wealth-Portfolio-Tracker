@@ -232,7 +232,7 @@ Owner only. Soft-deletes the portfolio. Response `204`. Restoration is not expos
 
 ### `GET /portfolios/{portfolio}/members`
 
-Any member. The list is bounded for MVP and not paginated. Response `200`.
+Any member. The list is unpaginated for the household-sized MVP. Response `200`.
 
 ### `POST /portfolios/{portfolio}/members`
 

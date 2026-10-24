@@ -50,7 +50,7 @@ export const transactionsApi = {
 }
 
 export const membersApi = {
-  list: (portfolioId: number, cursor?: string | null) => apiClient.get<CursorCollection<Membership>>(`${v1}/portfolios/${portfolioId}/members${query({ cursor })}`),
+  list: (portfolioId: number) => apiClient.get<Resource<Membership[]>>(`${v1}/portfolios/${portfolioId}/members`),
   create: (portfolioId: number, input: { email: string; role: Role }) => apiClient.post<Resource<Membership>>(`${v1}/portfolios/${portfolioId}/members`, input),
   update: (portfolioId: number, id: number, role: Role) => apiClient.patch<Resource<Membership>>(`${v1}/portfolios/${portfolioId}/members/${id}`, { role }),
   delete: (portfolioId: number, id: number) => apiClient.delete<void>(`${v1}/portfolios/${portfolioId}/members/${id}`),

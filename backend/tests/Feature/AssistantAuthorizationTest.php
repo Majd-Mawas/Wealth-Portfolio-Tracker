@@ -116,6 +116,68 @@ class AssistantAuthorizationTest extends TestCase
         });
     }
 
+    public function test_tool_rechecks_permission_after_membership_is_revoked(): void
+    {
+        $viewer = User::factory()->create();
+        $portfolio = $this->portfolioWithMember($viewer, PortfolioRole::Viewer);
+        $membership = PortfolioMembership::query()
+            ->where('portfolio_id', $portfolio->getKey())
+            ->where('user_id', $viewer->getKey())
+            ->firstOrFail();
+        $requestCount = 0;
+
+        config([
+            'services.openai.api_key' => 'test-key',
+            'services.openai.model' => 'test-model',
+        ]);
+
+        Http::preventStrayRequests();
+        Http::fake([
+            'https://api.openai.com/v1/responses' => function () use (&$requestCount, $membership, $portfolio) {
+                $requestCount++;
+
+                if ($requestCount === 1) {
+                    $membership->delete();
+
+                    return Http::response([
+                        'id' => 'resp_tool',
+                        'output' => [[
+                            'type' => 'function_call',
+                            'call_id' => 'call_revoked',
+                            'name' => 'get_portfolio_summary',
+                            'arguments' => json_encode([
+                                'portfolio_id' => $portfolio->getKey(),
+                            ], JSON_THROW_ON_ERROR),
+                        ]],
+                    ]);
+                }
+
+                return Http::response([
+                    'id' => 'resp_answer',
+                    'output' => [[
+                        'type' => 'message',
+                        'role' => 'assistant',
+                        'content' => [[
+                            'type' => 'output_text',
+                            'text' => 'Access was revoked before the tool could read data.',
+                            'annotations' => [],
+                        ]],
+                    ]],
+                ]);
+            },
+        ]);
+
+        $response = $this->actingAs($viewer)
+            ->postJson("/api/v1/portfolios/{$portfolio->id}/assistant/chat", $this->chatPayload());
+
+        $response->assertOk();
+        $content = $response->streamedContent();
+        $this->assertStringContainsString('event: tool_error', $content);
+        $this->assertStringContainsString('tool_forbidden', $content);
+        $this->assertStringNotContainsString('total_value', $content);
+        Http::assertSentCount(2);
+    }
+
     public function test_invalid_tool_arguments_are_rejected_server_side(): void
     {
         $owner = User::factory()->create();

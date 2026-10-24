@@ -278,6 +278,19 @@ class TransactionAuthorizationTest extends TestCase
             ->assertJsonPath('data.0.occurred_at', '2026-10-24T11:45:00.000000Z');
     }
 
+    public function test_history_rejects_an_asset_filter_from_another_portfolio(): void
+    {
+        $viewer = User::factory()->create();
+        $portfolio = $this->portfolioWithMember($viewer, PortfolioRole::Viewer);
+        $otherAsset = Asset::factory()->create();
+
+        $this->actingAs($viewer)
+            ->getJson("/api/v1/portfolios/{$portfolio->id}/transactions?asset_id={$otherAsset->id}")
+            ->assertUnprocessable()
+            ->assertJsonPath('error.code', 'validation_failed')
+            ->assertJsonPath('error.fields.asset_id.0', 'The selected asset id is invalid.');
+    }
+
     /** @return array<string, array{PortfolioRole}> */
     public static function writableRoles(): array
     {

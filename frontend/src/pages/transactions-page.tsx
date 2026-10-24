@@ -31,7 +31,7 @@ export function TransactionsPage() {
   const [reversing, setReversing] = useState<Transaction>()
   const transactions = useInfiniteQuery({
     queryKey: ['portfolio', portfolio.id, 'transactions', assetId, kind, occurredFrom, occurredTo],
-    queryFn: ({ pageParam }) => transactionsApi.list(portfolio.id, { cursor: pageParam, asset_id: assetId ? Number(assetId) : undefined, kind, occurred_from: occurredFrom ? `${occurredFrom}T00:00:00` : undefined, occurred_to: occurredTo ? `${occurredTo}T23:59:59` : undefined }),
+    queryFn: ({ pageParam }) => transactionsApi.list(portfolio.id, { cursor: pageParam, asset_id: assetId ? Number(assetId) : undefined, kind, occurred_from: localDayBoundary(occurredFrom, false), occurred_to: localDayBoundary(occurredTo, true) }),
     initialPageParam: null as string | null,
     getNextPageParam: (last) => last.meta.next_cursor,
   })
@@ -46,6 +46,11 @@ export function TransactionsPage() {
     {transactions.hasNextPage && <div className="text-center"><Button variant="secondary" onClick={() => transactions.fetchNextPage()} disabled={transactions.isFetchingNextPage}>{transactions.isFetchingNextPage ? 'Loading…' : 'Load more'}</Button></div>}
     <ReverseDialog portfolioId={portfolio.id} transaction={reversing} onOpenChange={(open) => { if (!open) setReversing(undefined) }} />
   </div>
+}
+
+function localDayBoundary(date: string, endOfDay: boolean) {
+  if (!date) return undefined
+  return new Date(`${date}T${endOfDay ? '23:59:59.999' : '00:00:00.000'}`).toISOString()
 }
 
 function ReverseDialog({ portfolioId, transaction, onOpenChange }: { portfolioId: number; transaction?: Transaction; onOpenChange: (open: boolean) => void }) {

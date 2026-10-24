@@ -19,8 +19,16 @@ class ListTransactionsRequest extends ApiFormRequest
 
     public function rules(): array
     {
+        $portfolio = $this->route('portfolio');
+        $portfolioId = $portfolio instanceof Portfolio ? $portfolio->getKey() : 0;
+
         return [
-            'asset_id' => ['sometimes', 'integer', 'min:1'],
+            'asset_id' => [
+                'sometimes',
+                'integer',
+                'min:1',
+                Rule::exists('assets', 'id')->where('portfolio_id', $portfolioId),
+            ],
             'kind' => ['sometimes', Rule::enum(TransactionKind::class)],
             'occurred_from' => ['sometimes', 'date'],
             'occurred_to' => ['sometimes', 'date', 'after_or_equal:occurred_from'],

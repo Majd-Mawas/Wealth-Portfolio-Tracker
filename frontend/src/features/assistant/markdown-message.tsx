@@ -1,15 +1,15 @@
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
-import { cn } from '../../lib/utils'
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { cn } from "../../lib/utils";
 
 interface MarkdownMessageProps {
-  content: string
-  className?: string
+  content: string;
+  className?: string;
 }
 
 export function MarkdownMessage({ content, className }: MarkdownMessageProps) {
   return (
-    <div className={cn('markdown-message', className)}>
+    <div className={cn("markdown-message", className)}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         skipHtml
@@ -19,7 +19,11 @@ export function MarkdownMessage({ content, className }: MarkdownMessageProps) {
             <a
               href={href}
               rel="noopener noreferrer"
-              target={href?.startsWith('http://') || href?.startsWith('https://') ? '_blank' : undefined}
+              target={
+                href?.startsWith("http://") || href?.startsWith("https://")
+                  ? "_blank"
+                  : undefined
+              }
             >
               {children}
             </a>
@@ -34,21 +38,21 @@ export function MarkdownMessage({ content, className }: MarkdownMessageProps) {
         {content}
       </ReactMarkdown>
     </div>
-  )
+  );
 }
 
 function safeUrlTransform(url: string): string {
-  const normalizedUrl = url.trim().toLowerCase()
+  const normalizedUrl = url.trim().toLowerCase();
 
   if (
-    normalizedUrl.startsWith('https://')
-    || normalizedUrl.startsWith('http://')
-    || normalizedUrl.startsWith('mailto:')
-    || (normalizedUrl.startsWith('/') && !normalizedUrl.startsWith('//'))
-    || normalizedUrl.startsWith('#')
+    normalizedUrl.startsWith("https://") ||
+    normalizedUrl.startsWith("http://") ||
+    normalizedUrl.startsWith("mailto:") ||
+    (normalizedUrl.startsWith("/") && !normalizedUrl.startsWith("//")) ||
+    normalizedUrl.startsWith("#")
   ) {
-    return url
+    return url;
   }
 
-  return ''
+  return "";
 }

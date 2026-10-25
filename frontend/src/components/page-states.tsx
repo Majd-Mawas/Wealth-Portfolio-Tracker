@@ -6,7 +6,8 @@ import { Skeleton } from "./ui/skeleton";
 
 export function PageLoading() {
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" role="status" aria-label="Loading content">
+      <span className="sr-only">Loading…</span>
       <Skeleton className="h-28" />
       <Skeleton className="h-64" />
     </div>

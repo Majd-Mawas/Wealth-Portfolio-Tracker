@@ -14,6 +14,20 @@ export function quantity(value: string | number) {
   );
 }
 
+export function percentage(value: string | number) {
+  return `${new Intl.NumberFormat(undefined, {
+    maximumFractionDigits: 1,
+  }).format(exactIntlValue(value))}%`;
+}
+
+export function trimDecimalZeros(value: string) {
+  if (!/^[+-]?\d+(\.\d+)?$/.test(value)) return value;
+
+  return value.includes(".")
+    ? value.replace(/0+$/, "").replace(/\.$/, "")
+    : value;
+}
+
 function exactIntlValue(value: string | number): number {
   if (typeof value === "number") return Number.isFinite(value) ? value : 0;
 

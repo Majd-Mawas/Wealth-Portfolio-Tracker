@@ -30,8 +30,9 @@ import {
 } from "../components/ui/table";
 import { membersApi } from "../lib/api";
 import { errorMessage } from "../lib/api-client";
-import type { Role } from "../lib/api-types";
+import type { Membership, Role } from "../lib/api-types";
 import { shortDate } from "../lib/format";
+import { useAuth } from "../features/auth/auth-context";
 import type { PortfolioOutletContext } from "./portfolio-layout";
 
 const schema = z.object({
@@ -42,8 +43,10 @@ type Values = z.infer<typeof schema>;
 
 export function MembersPage() {
   const { portfolio } = useOutletContext<PortfolioOutletContext>();
+  const { user } = useAuth();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [removing, setRemoving] = useState<Membership>();
   const members = useQuery({
     queryKey: ["portfolio", portfolio.id, "members"],
     queryFn: () => membersApi.list(portfolio.id),
@@ -82,9 +85,7 @@ export function MembersPage() {
         )}
       </div>
       {members.error && <ErrorState error={members.error} />}
-      {(update.error || remove.error) && (
-        <Alert>{errorMessage(update.error ?? remove.error)}</Alert>
-      )}
+      {update.error && <Alert>{errorMessage(update.error)}</Alert>}
       {!members.error && items.length === 0 ? (
         <EmptyState
           title="No members found"
@@ -98,23 +99,31 @@ export function MembersPage() {
                 <TableHead>Member</TableHead>
                 <TableHead>Role</TableHead>
                 <TableHead>Added</TableHead>
-                {canManage && <TableHead className="w-16">Remove</TableHead>}
+                {canManage && <TableHead className="w-20">Actions</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
               {items.map((membership) => (
                 <TableRow key={membership.id}>
                   <TableCell>
-                    <p className="font-medium text-[#25392f]">
-                      {membership.user.name}
-                    </p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="font-medium text-[#25392f]">
+                        {membership.user.name}
+                      </p>
+                      {membership.user.id === user?.id && (
+                        <Badge variant="blue" className="normal-case">
+                          You
+                        </Badge>
+                      )}
+                    </div>
                     <p className="text-xs text-[#718079]">
                       {membership.user.email}
                     </p>
                   </TableCell>
                   <TableCell>
-                    {canManage ? (
+                    {canManage && membership.user.id !== user?.id ? (
                       <select
+                        aria-label={`Role for ${membership.user.name}`}
                         className="field-select max-w-36"
                         value={membership.role}
                         disabled={update.isPending}
@@ -130,27 +139,26 @@ export function MembersPage() {
                         <option value="viewer">Viewer</option>
                       </select>
                     ) : (
-                      <Badge>{membership.role}</Badge>
+                      <Badge className="capitalize">{membership.role}</Badge>
                     )}
                   </TableCell>
                   <TableCell>{shortDate(membership.created_at)}</TableCell>
                   {canManage && (
                     <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        aria-label={`Remove ${membership.user.name}`}
-                        onClick={() => {
-                          if (
-                            window.confirm(
-                              `Remove ${membership.user.name} from this portfolio?`,
-                            )
-                          )
-                            remove.mutate(membership.id);
-                        }}
-                      >
-                        <Trash2 size={16} />
-                      </Button>
+                      {membership.user.id !== user?.id && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label={`Remove ${membership.user.name}`}
+                          title={`Remove ${membership.user.name}`}
+                          onClick={() => {
+                            remove.reset();
+                            setRemoving(membership);
+                          }}
+                        >
+                          <Trash2 size={16} />
+                        </Button>
+                      )}
                     </TableCell>
                   )}
                 </TableRow>
@@ -164,6 +172,49 @@ export function MembersPage() {
         open={open}
         onOpenChange={setOpen}
       />
+      <Dialog
+        open={Boolean(removing)}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) {
+            remove.reset();
+            setRemoving(undefined);
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Remove portfolio member?</DialogTitle>
+            <DialogDescription>
+              {removing
+                ? `${removing.user.name} will lose access to ${portfolio.name}. Their historical transactions will remain.`
+                : ""}
+            </DialogDescription>
+          </DialogHeader>
+          {remove.error && <Alert>{errorMessage(remove.error)}</Alert>}
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setRemoving(undefined)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="danger"
+              disabled={remove.isPending}
+              onClick={() => {
+                if (!removing) return;
+                remove.mutate(removing.id, {
+                  onSuccess: () => setRemoving(undefined),
+                });
+              }}
+            >
+              {remove.isPending ? "Removing…" : "Remove member"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

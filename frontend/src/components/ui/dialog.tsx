@@ -24,7 +24,7 @@ export function DialogContent({
       >
         {children}
         <DialogPrimitive.Close
-          className="absolute right-4 top-4 rounded p-1 text-[#687871] hover:bg-[#edf0ed]"
+          className="absolute right-4 top-4 rounded p-1 text-[#687871] hover:bg-[#edf0ed] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#397563] focus-visible:ring-offset-2"
           aria-label="Close"
         >
           <X size={18} />

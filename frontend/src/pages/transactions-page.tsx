@@ -24,6 +24,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "../components/ui/dialog";
+import { Input } from "../components/ui/input";
 import {
   Table,
   TableBody,
@@ -34,7 +35,7 @@ import {
 } from "../components/ui/table";
 import { assetsApi, transactionsApi } from "../lib/api";
 import { errorMessage } from "../lib/api-client";
-import type { Transaction } from "../lib/api-types";
+import type { Asset, Transaction } from "../lib/api-types";
 import { dateTime, money, quantity } from "../lib/format";
 import type { PortfolioOutletContext } from "./portfolio-layout";
 
@@ -73,12 +74,25 @@ export function TransactionsPage() {
   });
   const assetOptions = useQuery({
     queryKey: ["portfolio", portfolio.id, "assets", "transaction-filter"],
-    queryFn: () =>
-      assetsApi
-        .list(portfolio.id, { include_archived: "true" })
-        .then((response) => response.data),
+    queryFn: async () => {
+      const allAssets: Asset[] = [];
+      let cursor: string | null | undefined;
+
+      do {
+        const response = await assetsApi.list(portfolio.id, {
+          cursor,
+          include_archived: "true",
+        });
+        allAssets.push(...response.data);
+        cursor = response.meta.next_cursor;
+      } while (cursor);
+
+      return allAssets;
+    },
   });
   const items = transactions.data?.pages.flatMap((page) => page.data) ?? [];
+  const canRecord = portfolio.capabilities.record_transactions;
+  const hasFilters = Boolean(assetId || kind || occurredFrom || occurredTo);
   if (transactions.isLoading) return <PageLoading />;
   return (
     <div className="space-y-5">
@@ -91,54 +105,71 @@ export function TransactionsPage() {
         </p>
       </div>
       <Card>
-        <CardContent className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4">
-          <select
-            aria-label="Filter by asset"
-            className="field-select"
-            value={assetId}
-            onChange={(event) => setAssetId(event.target.value)}
-          >
-            <option value="">All assets</option>
-            {assetOptions.data?.map((asset) => (
-              <option key={asset.id} value={asset.id}>
-                {asset.name}
+        <CardContent className="grid items-end gap-4 p-4 sm:grid-cols-2 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,.8fr)_minmax(0,.8fr)_auto]">
+          <FormField label="Asset">
+            <select
+              className="field-select"
+              value={assetId}
+              disabled={assetOptions.isLoading}
+              onChange={(event) => setAssetId(event.target.value)}
+            >
+              <option value="">
+                {assetOptions.isLoading ? "Loading assets…" : "All assets"}
               </option>
-            ))}
-          </select>
-          <select
-            aria-label="Filter by transaction type"
-            className="field-select"
-            value={kind}
-            onChange={(event) => setKind(event.target.value)}
-          >
-            <option value="">All transaction types</option>
-            <option value="buy">Buy</option>
-            <option value="sell">Sell</option>
-            <option value="deposit">Deposit</option>
-            <option value="withdrawal">Withdrawal</option>
-            <option value="adjustment">Adjustment</option>
-            <option value="reversal">Reversal</option>
-          </select>
-          <label className="text-xs font-medium text-[#5e6f67]">
-            From
-            <input
-              className="mt-1 block h-8 w-full rounded border border-[#cdd5cf] px-2 text-sm"
+              {assetOptions.data?.map((asset) => (
+                <option key={asset.id} value={asset.id}>
+                  {asset.name}
+                </option>
+              ))}
+            </select>
+          </FormField>
+          <FormField label="Transaction type">
+            <select
+              className="field-select"
+              value={kind}
+              onChange={(event) => setKind(event.target.value)}
+            >
+              <option value="">All types</option>
+              <option value="buy">Buy</option>
+              <option value="sell">Sell</option>
+              <option value="deposit">Deposit</option>
+              <option value="withdrawal">Withdrawal</option>
+              <option value="adjustment">Adjustment</option>
+              <option value="reversal">Reversal</option>
+            </select>
+          </FormField>
+          <FormField label="From date">
+            <Input
               type="date"
               value={occurredFrom}
+              max={occurredTo || undefined}
               onChange={(event) => setOccurredFrom(event.target.value)}
             />
-          </label>
-          <label className="text-xs font-medium text-[#5e6f67]">
-            To
-            <input
-              className="mt-1 block h-8 w-full rounded border border-[#cdd5cf] px-2 text-sm"
+          </FormField>
+          <FormField label="To date">
+            <Input
               type="date"
               value={occurredTo}
+              min={occurredFrom || undefined}
               onChange={(event) => setOccurredTo(event.target.value)}
             />
-          </label>
+          </FormField>
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={!hasFilters}
+            onClick={() => {
+              setAssetId("");
+              setKind("");
+              setOccurredFrom("");
+              setOccurredTo("");
+            }}
+          >
+            Clear
+          </Button>
         </CardContent>
       </Card>
+      {assetOptions.error && <Alert>{errorMessage(assetOptions.error)}</Alert>}
       {transactions.error && <ErrorState error={transactions.error} />}
       {!transactions.error && items.length === 0 ? (
         <EmptyState
@@ -156,7 +187,7 @@ export function TransactionsPage() {
                 <TableHead className="text-right">Quantity change</TableHead>
                 <TableHead className="text-right">Unit price</TableHead>
                 <TableHead>Recorded by</TableHead>
-                <TableHead className="w-20">Action</TableHead>
+                {canRecord && <TableHead className="w-20">Action</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -192,7 +223,7 @@ export function TransactionsPage() {
                     </Badge>
                   </TableCell>
                   <TableCell className="tabular text-right">
-                    {Number(transaction.quantity_delta) > 0 ? "+" : ""}
+                    {!transaction.quantity_delta.startsWith("-") ? "+" : ""}
                     {quantity(transaction.quantity_delta)}
                   </TableCell>
                   <TableCell className="tabular text-right">
@@ -201,9 +232,9 @@ export function TransactionsPage() {
                       : "—"}
                   </TableCell>
                   <TableCell>{transaction.created_by.name}</TableCell>
-                  <TableCell>
-                    {portfolio.capabilities.record_transactions &&
-                      transaction.kind !== "reversal" &&
+                  {canRecord && (
+                    <TableCell>
+                      {transaction.kind !== "reversal" &&
                       !transaction.reversal_of_id && (
                         <Button
                           variant="ghost"
@@ -215,7 +246,8 @@ export function TransactionsPage() {
                           <RotateCcw size={15} />
                         </Button>
                       )}
-                  </TableCell>
+                    </TableCell>
+                  )}
                 </TableRow>
               ))}
             </TableBody>

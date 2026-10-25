@@ -48,10 +48,13 @@ import {
   quantity,
   shortDate,
   toLocalDateTimeInput,
+  trimDecimalZeros,
 } from "../lib/format";
 import type { PortfolioOutletContext } from "./portfolio-layout";
 
 const decimal = /^\d+(\.\d{1,8})?$/;
+const signedDecimal = /^-?\d+(\.\d{1,8})?$/;
+const hasNonZeroDigit = (value: string) => /[1-9]/.test(value);
 const assetSchema = z.object({
   type: z.enum(["stock", "crypto", "real_estate", "cash"]),
   name: z.string().trim().min(1).max(160),
@@ -59,12 +62,12 @@ const assetSchema = z.object({
   current_price: z
     .string()
     .regex(decimal, "Enter a positive decimal with up to 8 places.")
-    .refine((value) => Number(value) > 0, "Price must be greater than zero."),
+    .refine(hasNonZeroDigit, "Price must be greater than zero."),
   price_as_of: z.string().min(1),
   opening_quantity: z
     .string()
     .refine(
-      (value) => value === "" || (decimal.test(value) && Number(value) > 0),
+      (value) => value === "" || (decimal.test(value) && hasNonZeroDigit(value)),
       "Enter a positive quantity.",
     ),
 });
@@ -75,12 +78,12 @@ const transactionSchema = z
     kind: z.enum(["buy", "sell", "deposit", "withdrawal", "adjustment"]),
     quantity: z
       .string()
-      .regex(/^-?\d+(\.\d{1,8})?$/, "Enter a non-zero decimal.")
-      .refine((value) => Number(value) !== 0, "Quantity cannot be zero."),
+      .regex(signedDecimal, "Enter a non-zero decimal with up to 8 places.")
+      .refine(hasNonZeroDigit, "Quantity cannot be zero."),
     unit_price: z
       .string()
       .refine(
-        (value) => value === "" || (decimal.test(value) && Number(value) > 0),
+        (value) => value === "" || (decimal.test(value) && hasNonZeroDigit(value)),
         "Enter a positive price.",
       ),
     fees: z.string().regex(decimal, "Enter a non-negative decimal."),
@@ -88,7 +91,7 @@ const transactionSchema = z
     note: z.string().max(500),
   })
   .superRefine((value, context) => {
-    if (value.kind !== "adjustment" && Number(value.quantity) < 0)
+    if (value.kind !== "adjustment" && value.quantity.startsWith("-"))
       context.addIssue({
         code: "custom",
         path: ["quantity"],
@@ -155,21 +158,22 @@ export function AssetsPage() {
         )}
       </div>
       <Card>
-        <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
-          <select
-            aria-label="Filter asset type"
-            className="field-select sm:max-w-52"
-            value={type}
-            onChange={(event) => setType(event.target.value)}
-          >
-            <option value="">All asset types</option>
-            {Object.entries(assetTypeLabel).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-          <label className="flex items-center gap-2 text-sm text-[#53655d]">
+        <CardContent className="grid gap-4 p-4 sm:grid-cols-[minmax(0,13rem)_1fr] sm:items-end">
+          <FormField label="Asset type">
+            <select
+              className="field-select"
+              value={type}
+              onChange={(event) => setType(event.target.value)}
+            >
+              <option value="">All asset types</option>
+              {Object.entries(assetTypeLabel).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </FormField>
+          <label className="flex h-10 items-center gap-2 text-sm text-[#53655d] sm:pb-0">
             <input
               type="checkbox"
               checked={includeArchived}
@@ -209,7 +213,7 @@ export function AssetsPage() {
                 <TableHead className="text-right">Quantity</TableHead>
                 <TableHead className="text-right">Manual price</TableHead>
                 <TableHead className="text-right">Value</TableHead>
-                <TableHead className="w-40">Actions</TableHead>
+                {canManage && <TableHead className="w-40">Actions</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -240,53 +244,55 @@ export function AssetsPage() {
                   <TableCell className="tabular text-right font-medium">
                     {money(asset.value, portfolio.base_currency)}
                   </TableCell>
-                  <TableCell>
-                    <div className="flex gap-1">
-                      {portfolio.capabilities.record_transactions &&
-                        !asset.archived_at && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            aria-label={`Record transaction for ${asset.name}`}
-                            title="Record transaction"
-                            onClick={() => setTransactionAsset(asset)}
-                          >
-                            <ReceiptText size={16} />
-                          </Button>
-                        )}
-                      {canManage && !asset.archived_at && (
-                        <>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            aria-label={`Edit ${asset.name}`}
-                            title="Edit asset"
-                            onClick={() =>
-                              setAssetDialog({ open: true, asset })
-                            }
-                          >
-                            <Edit3 size={16} />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            aria-label={`Archive ${asset.name}`}
-                            title="Archive asset"
-                            onClick={() => {
-                              if (
-                                window.confirm(
-                                  `Archive ${asset.name}? Its transaction history will be preserved.`,
+                  {canManage && (
+                    <TableCell>
+                      <div className="flex gap-1">
+                        {portfolio.capabilities.record_transactions &&
+                          !asset.archived_at && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              aria-label={`Record transaction for ${asset.name}`}
+                              title="Record transaction"
+                              onClick={() => setTransactionAsset(asset)}
+                            >
+                              <ReceiptText size={16} />
+                            </Button>
+                          )}
+                        {!asset.archived_at && (
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              aria-label={`Edit ${asset.name}`}
+                              title="Edit asset"
+                              onClick={() =>
+                                setAssetDialog({ open: true, asset })
+                              }
+                            >
+                              <Edit3 size={16} />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              aria-label={`Archive ${asset.name}`}
+                              title="Archive asset"
+                              onClick={() => {
+                                if (
+                                  window.confirm(
+                                    `Archive ${asset.name}? Its transaction history will be preserved.`,
+                                  )
                                 )
-                              )
-                                archive.mutate(asset.id);
-                            }}
-                          >
-                            <Archive size={16} />
-                          </Button>
-                        </>
-                      )}
-                    </div>
-                  </TableCell>
+                                  archive.mutate(asset.id);
+                              }}
+                            >
+                              <Archive size={16} />
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                    </TableCell>
+                  )}
                 </TableRow>
               ))}
             </TableBody>
@@ -340,6 +346,7 @@ function AssetDialog({
     register,
     handleSubmit,
     reset,
+    setValue,
     watch,
     setError,
     formState: { errors },
@@ -362,7 +369,7 @@ function AssetDialog({
               type: asset.type,
               name: asset.name,
               symbol: asset.symbol ?? "",
-              current_price: asset.current_price,
+              current_price: trimDecimalZeros(asset.current_price),
               price_as_of: toLocalDateTimeInput(asset.price_as_of),
               opening_quantity: "",
             }
@@ -384,13 +391,13 @@ function AssetDialog({
         name: values.name,
         symbol: values.symbol || null,
         currency,
-        current_price: values.current_price,
+        current_price: trimDecimalZeros(values.current_price),
         price_as_of: new Date(values.price_as_of).toISOString(),
       };
       if (!asset && values.opening_quantity)
         input.opening = {
-          quantity: values.opening_quantity,
-          unit_price: values.current_price,
+          quantity: trimDecimalZeros(values.opening_quantity),
+          unit_price: trimDecimalZeros(values.current_price),
           occurred_at: new Date(values.price_as_of).toISOString(),
           note: "Opening balance",
         };
@@ -426,7 +433,7 @@ function AssetDialog({
           className="space-y-4"
         >
           {errors.root?.message && <Alert>{errors.root.message}</Alert>}
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-x-4 gap-y-5 sm:grid-cols-2">
             <FormField label="Asset type" error={errors.type?.message}>
               <select className="field-select" {...register("type")}>
                 <option value="stock">Stock</option>
@@ -450,9 +457,23 @@ function AssetDialog({
                   : "Manual price per unit."
               }
             >
-              <Input inputMode="decimal" {...register("current_price")} />
+              <Input
+                inputMode="decimal"
+                {...register("current_price", {
+                  onBlur: (event) =>
+                    setValue(
+                      "current_price",
+                      trimDecimalZeros(event.target.value),
+                      { shouldValidate: true },
+                    ),
+                })}
+              />
             </FormField>
-            <FormField label="Price as of" error={errors.price_as_of?.message}>
+            <FormField
+              label="Price as of"
+              error={errors.price_as_of?.message}
+              hint="Local date and time for this manual price."
+            >
               <Input type="datetime-local" {...register("price_as_of")} />
             </FormField>
             {!asset && (
@@ -461,7 +482,17 @@ function AssetDialog({
                 error={errors.opening_quantity?.message}
                 hint="Creates the initial transaction atomically."
               >
-                <Input inputMode="decimal" {...register("opening_quantity")} />
+                <Input
+                  inputMode="decimal"
+                  {...register("opening_quantity", {
+                    onBlur: (event) =>
+                      setValue(
+                        "opening_quantity",
+                        trimDecimalZeros(event.target.value),
+                        { shouldValidate: true },
+                      ),
+                  })}
+                />
               </FormField>
             )}
           </div>
@@ -501,6 +532,7 @@ function TransactionDialog({
     register,
     handleSubmit,
     reset,
+    setValue,
     setError,
     formState: { errors },
   } = useForm<TransactionValues>({
@@ -519,7 +551,7 @@ function TransactionDialog({
       reset({
         kind: asset.type === "cash" ? "deposit" : "buy",
         quantity: "",
-        unit_price: asset.current_price,
+        unit_price: trimDecimalZeros(asset.current_price),
         fees: "0",
         occurred_at: localDateTimeInput(),
         note: "",
@@ -529,9 +561,11 @@ function TransactionDialog({
     mutationFn: (values: TransactionValues) => {
       const input: TransactionInput = {
         kind: values.kind as WritableTransactionKind,
-        quantity: values.quantity,
-        unit_price: values.unit_price || null,
-        fees: values.fees,
+        quantity: trimDecimalZeros(values.quantity),
+        unit_price: values.unit_price
+          ? trimDecimalZeros(values.unit_price)
+          : null,
+        fees: trimDecimalZeros(values.fees),
         occurred_at: new Date(values.occurred_at).toISOString(),
         note: values.note || null,
       };
@@ -559,7 +593,7 @@ function TransactionDialog({
           className="space-y-4"
         >
           {errors.root?.message && <Alert>{errors.root.message}</Alert>}
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-x-4 gap-y-5 sm:grid-cols-2">
             <FormField label="Type" error={errors.kind?.message}>
               <select className="field-select" {...register("kind")}>
                 <option value="buy">Buy</option>
@@ -569,19 +603,60 @@ function TransactionDialog({
                 <option value="adjustment">Adjustment</option>
               </select>
             </FormField>
-            <FormField label="Quantity" error={errors.quantity?.message}>
-              <Input inputMode="decimal" {...register("quantity")} />
+            <FormField
+              label="Quantity"
+              error={errors.quantity?.message}
+              hint="Use up to 8 decimal places."
+            >
+              <Input
+                inputMode="decimal"
+                {...register("quantity", {
+                  onBlur: (event) =>
+                    setValue(
+                      "quantity",
+                      trimDecimalZeros(event.target.value),
+                      { shouldValidate: true },
+                    ),
+                })}
+              />
             </FormField>
             <FormField
               label="Unit price (optional)"
               error={errors.unit_price?.message}
+              hint="Historical price per unit; current valuation still uses the asset's manual price."
             >
-              <Input inputMode="decimal" {...register("unit_price")} />
+              <Input
+                inputMode="decimal"
+                {...register("unit_price", {
+                  onBlur: (event) =>
+                    setValue(
+                      "unit_price",
+                      trimDecimalZeros(event.target.value),
+                      { shouldValidate: true },
+                    ),
+                })}
+              />
             </FormField>
-            <FormField label="Fees" error={errors.fees?.message}>
-              <Input inputMode="decimal" {...register("fees")} />
+            <FormField
+              label="Fees"
+              error={errors.fees?.message}
+              hint="Enter 0 when there are no fees."
+            >
+              <Input
+                inputMode="decimal"
+                {...register("fees", {
+                  onBlur: (event) =>
+                    setValue("fees", trimDecimalZeros(event.target.value), {
+                      shouldValidate: true,
+                    }),
+                })}
+              />
             </FormField>
-            <FormField label="Occurred at" error={errors.occurred_at?.message}>
+            <FormField
+              label="Occurred at"
+              error={errors.occurred_at?.message}
+              hint="Your local date and time."
+            >
               <Input type="datetime-local" {...register("occurred_at")} />
             </FormField>
           </div>

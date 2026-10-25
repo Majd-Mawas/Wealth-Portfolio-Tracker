@@ -14,15 +14,20 @@ button, input, select, textarea { font: inherit; }
 button { cursor: pointer; }
 .tabular { font-variant-numeric: tabular-nums; }
 .field-select {
-  height: 2.5rem; width: 100%; border-radius: .375rem; border: 1px solid #cdd5cf; background: white;
+  height: 2.5rem; min-width: 0; width: 100%; border-radius: .375rem; border: 1px solid #cdd5cf; background: white;
   padding: 0 .75rem; font-size: .875rem; color: #17261f; outline: none;
 }
-.field-select:focus { border-color: #397563; box-shadow: 0 0 0 2px rgb(57 117 99 / .15); }
+.field-select:focus-visible { border-color: #397563; box-shadow: 0 0 0 2px rgb(57 117 99 / .15); }
+.field-select[aria-invalid="true"] { border-color: #b64a44; }
+.field-select[aria-invalid="true"]:focus-visible { box-shadow: 0 0 0 2px rgb(182 74 68 / .15); }
+.field-select:disabled { cursor: not-allowed; background: #f0f2ef; color: #687871; }
 .field-textarea {
   min-height: 5rem; width: 100%; resize: vertical; border-radius: .375rem; border: 1px solid #cdd5cf;
   background: white; padding: .625rem .75rem; font-size: .875rem; color: #17261f; outline: none;
 }
-.field-textarea:focus { border-color: #397563; box-shadow: 0 0 0 2px rgb(57 117 99 / .15); }
+.field-textarea:focus-visible { border-color: #397563; box-shadow: 0 0 0 2px rgb(57 117 99 / .15); }
+.field-textarea[aria-invalid="true"] { border-color: #b64a44; }
+.field-textarea[aria-invalid="true"]:focus-visible { box-shadow: 0 0 0 2px rgb(182 74 68 / .15); }
 
 .markdown-message { overflow-wrap: anywhere; }
 .markdown-message > :first-child { margin-top: 0; }

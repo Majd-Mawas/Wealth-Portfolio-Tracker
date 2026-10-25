@@ -19,7 +19,13 @@ import {
   TableRow,
 } from "../components/ui/table";
 import { portfoliosApi } from "../lib/api";
-import { assetTypeLabel, money, quantity, shortDate } from "../lib/format";
+import {
+  assetTypeLabel,
+  money,
+  percentage,
+  quantity,
+  shortDate,
+} from "../lib/format";
 import { AssistantPanel } from "../features/assistant/assistant-panel";
 import type { PortfolioOutletContext } from "./portfolio-layout";
 
@@ -36,6 +42,12 @@ export function DashboardPage() {
   if (dashboard.error || !dashboard.data)
     return <ErrorState error={dashboard.error} />;
   const data = dashboard.data;
+  const chartData = data.allocation_by_type
+    .filter((entry) => /[1-9]/.test(entry.percentage))
+    .map((entry) => ({
+      ...entry,
+      chartPercentage: Number(entry.percentage),
+    }));
   return (
     <div className="space-y-6">
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -128,25 +140,25 @@ export function DashboardPage() {
             </Table>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="min-w-0">
           <CardHeader>
             <CardTitle>Allocation</CardTitle>
           </CardHeader>
           <CardContent>
-            {data.allocation_by_type.length ? (
+            {chartData.length ? (
               <>
-                <div className="h-56">
+                <div className="h-56 min-h-56 w-full min-w-0">
                   <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
+                    <PieChart accessibilityLayer>
                       <Pie
-                        data={data.allocation_by_type}
-                        dataKey="value"
+                        data={chartData}
+                        dataKey="chartPercentage"
                         nameKey="type"
                         innerRadius={58}
                         outerRadius={88}
                         paddingAngle={2}
                       >
-                        {data.allocation_by_type.map((entry, index) => (
+                        {chartData.map((entry, index) => (
                           <Cell
                             key={entry.type}
                             fill={colors[index % colors.length] ?? colors[0]}
@@ -155,7 +167,7 @@ export function DashboardPage() {
                       </Pie>
                       <Tooltip
                         formatter={(value) =>
-                          money(String(value), portfolio.base_currency)
+                          `${percentage(String(value))} of portfolio`
                         }
                       />
                     </PieChart>
@@ -180,7 +192,7 @@ export function DashboardPage() {
                         </span>
                       </div>
                       <span className="tabular font-medium">
-                        {Number(entry.percentage).toFixed(1)}%
+                        {percentage(entry.percentage)}
                       </span>
                     </div>
                   ))}
@@ -188,7 +200,7 @@ export function DashboardPage() {
               </>
             ) : (
               <div className="flex h-56 items-center justify-center text-sm text-[#718079]">
-                Allocation appears after assets have value.
+                Allocation appears after assets have a positive value.
               </div>
             )}
           </CardContent>

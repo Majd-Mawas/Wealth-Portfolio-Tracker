@@ -142,9 +142,9 @@ The demo dataset is entirely fictional and intended only for local development, 
 
 | User | Email | Primary demo scenario |
 | --- | --- | --- |
-| Alex Morgan | `alex@example.test` | Owns Growth Portfolio; Viewer on Retirement Savings |
+| Alex Morgan | `alex@example.test` | Owns Growth Portfolio; Editor on Family Wealth; Viewer on Retirement Savings |
 | Sarah Bennett | `sarah@example.test` | Owns Family Wealth; Editor on Growth Portfolio |
-| Daniel Reed | `daniel@example.test` | Owns Retirement Savings; Viewer on Growth Portfolio; Editor on Family Wealth |
+| Daniel Reed | `daniel@example.test` | Owns Retirement Savings; Viewer on Growth Portfolio |
 | Emma Wilson | `emma@example.test` | Sole member and Owner of private Crypto Holdings; Editor on Retirement Savings; Viewer on Family Wealth |
 
 The seeder creates four portfolios, ten memberships, thirteen assets, and thirty-nine transactions dated from November 2025 through October 2026:

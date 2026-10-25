@@ -95,7 +95,7 @@ class DemoPortfolioSeeder extends Seeder
     private function seedFamilyWealth(array $users): void
     {
         $portfolio = $this->portfolio($users['sarah'], 'Family Wealth', 'USD');
-        $this->membership($users['sarah'], $portfolio, $users['daniel'], PortfolioRole::Editor);
+        $this->membership($users['sarah'], $portfolio, $users['alex'], PortfolioRole::Editor);
         $this->membership($users['sarah'], $portfolio, $users['emma'], PortfolioRole::Viewer);
 
         $apartment = $this->asset($users['sarah'], $portfolio, AssetType::RealEstate, 'Residential Apartment', null, '285000.00000000');
@@ -106,13 +106,13 @@ class DemoPortfolioSeeder extends Seeder
             ['sarah', TransactionKind::Buy, '1', '270000', '0', '2025-11-20T10:00:00+00:00', '[DEMO] Residential apartment acquisition'],
         ]);
         $this->history($users, $portfolio, $rental, [
-            ['daniel', TransactionKind::Buy, '1', '395000', '0', '2026-02-15T10:00:00+00:00', '[DEMO] Rental property acquisition'],
+            ['alex', TransactionKind::Buy, '1', '395000', '0', '2026-02-15T10:00:00+00:00', '[DEMO] Rental property acquisition'],
         ]);
         $this->history($users, $portfolio, $cash, [
             ['sarah', TransactionKind::Deposit, '60000', '1', '0', '2025-11-01T08:00:00+00:00', '[DEMO] Opening family reserve'],
-            ['daniel', TransactionKind::Withdrawal, '12000', '1', '0', '2026-01-10T08:30:00+00:00', '[DEMO] Home improvement payment'],
+            ['alex', TransactionKind::Withdrawal, '12000', '1', '0', '2026-01-10T08:30:00+00:00', '[DEMO] Home improvement payment'],
             ['sarah', TransactionKind::Deposit, '8500', '1', '0', '2026-05-05T08:30:00+00:00', '[DEMO] Family savings contribution'],
-            ['daniel', TransactionKind::Withdrawal, '2500', '1', '0', '2026-09-12T08:30:00+00:00', '[DEMO] Annual property maintenance'],
+            ['alex', TransactionKind::Withdrawal, '2500', '1', '0', '2026-09-12T08:30:00+00:00', '[DEMO] Annual property maintenance'],
         ]);
     }
 

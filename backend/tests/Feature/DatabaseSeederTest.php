@@ -44,7 +44,7 @@ class DatabaseSeederTest extends TestCase
             ['Growth Portfolio', 'sarah@example.test', PortfolioRole::Editor],
             ['Growth Portfolio', 'daniel@example.test', PortfolioRole::Viewer],
             ['Family Wealth', 'sarah@example.test', PortfolioRole::Owner],
-            ['Family Wealth', 'daniel@example.test', PortfolioRole::Editor],
+            ['Family Wealth', 'alex@example.test', PortfolioRole::Editor],
             ['Family Wealth', 'emma@example.test', PortfolioRole::Viewer],
             ['Retirement Savings', 'daniel@example.test', PortfolioRole::Owner],
             ['Retirement Savings', 'emma@example.test', PortfolioRole::Editor],

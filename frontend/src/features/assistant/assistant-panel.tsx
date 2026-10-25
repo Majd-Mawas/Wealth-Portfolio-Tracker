@@ -8,6 +8,7 @@ import { cn } from '../../lib/utils'
 import { Alert } from '../../components/ui/alert'
 import { Button } from '../../components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card'
+import { MarkdownMessage } from './markdown-message'
 
 interface ChatEntry extends AssistantMessage {
   id: string
@@ -108,7 +109,7 @@ export function AssistantPanel({ portfolioId }: { portfolioId: number }) {
     </CardHeader>
     <CardContent className="p-0">
       <div className="max-h-[32rem] min-h-72 space-y-5 overflow-y-auto p-4 sm:p-6" aria-live="polite">
-        {entries.map((entry) => <div key={entry.id} className={cn('flex', entry.role === 'user' ? 'justify-end' : 'justify-start')}><div className={cn('max-w-[88%] rounded-xl px-4 py-3 text-sm leading-6 sm:max-w-[78%]', entry.role === 'user' ? 'bg-[#183b31] text-white' : entry.error ? 'border border-[#ebc6c2] bg-[#fcf2f1] text-[#843431]' : 'border border-[#dfe5e0] bg-white text-[#34463f]')}><p className="whitespace-pre-wrap">{entry.content || (busy ? 'Reviewing the portfolio…' : '')}</p></div></div>)}
+        {entries.map((entry) => <div key={entry.id} className={cn('flex', entry.role === 'user' ? 'justify-end' : 'justify-start')}><div className={cn('max-w-[88%] rounded-xl px-4 py-3 text-sm leading-6 sm:max-w-[78%]', entry.role === 'user' ? 'bg-[#183b31] text-white' : entry.error ? 'border border-[#ebc6c2] bg-[#fcf2f1] text-[#843431]' : 'border border-[#dfe5e0] bg-white text-[#34463f]')}>{entry.role === 'assistant' ? <MarkdownMessage content={entry.content || (busy ? 'Reviewing the portfolio…' : '')} /> : <p className="whitespace-pre-wrap">{entry.content}</p>}</div></div>)}
         {toolNotices.length > 0 && <div className="space-y-2 border-l-2 border-[#dce5df] pl-3">{toolNotices.map((notice) => <div key={notice.id} className={cn('flex items-start gap-2 text-xs', notice.status === 'error' ? 'text-[#963d38]' : 'text-[#65766e]')}><Database size={13} className="mt-0.5 shrink-0" /><span><strong className="font-medium">{toolLabels[notice.tool] ?? notice.tool}</strong> — {notice.status === 'running' ? 'reading…' : notice.status === 'complete' ? 'complete' : notice.message}</span></div>)}</div>}
         {!busy && entries.length === 1 && <div className="flex flex-wrap gap-2">{suggestions.map((suggestion) => <button key={suggestion} type="button" className="rounded-full border border-[#d5ddd7] bg-white px-3 py-2 text-left text-xs text-[#4e6259] transition-colors hover:border-[#88a397] hover:text-[#205c4b]" onClick={() => setDraft(suggestion)}>{suggestion}</button>)}</div>}
       </div>
